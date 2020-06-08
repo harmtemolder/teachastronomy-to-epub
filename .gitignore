@@ -1,8 +1,8 @@
 # Don't upload any (possibly) copyrighted material
 *.pkl
 *.html
-images
 images_original
+images_758
 *.epub
 
 # PyCharm
