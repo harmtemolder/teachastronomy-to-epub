@@ -2,6 +2,7 @@ import os
 import re
 import time
 import urllib.request
+import warnings
 
 from bs4 import BeautifulSoup
 from cairosvg import svg2png
@@ -74,22 +75,32 @@ book = epub.EpubBook()
 book.set_identifier('teachastronomy.com')
 book.set_title('Teach Astronomy')
 book.set_language('en')
-book.add_author('Chris Impey')
+book.add_author('Impey, Chris')
 book.spine = ['nav'] # Chapters will be appended later
 book.set_cover('cover.jpg', open('cover.jpg', 'rb').read())
+
+# Collect all chapters and sections in this list
+book_toc = []
 
 # Loop through all chapters
 for chapter_index, chapter in contents.iterrows():
     chapter_title = '{}. {}'.format(
         chapter_index + 1,
         chapter['humanchapter'])
+    chapter_file_name = 'chap_{0:02d}.xhtml'.format(chapter_index + 1)
 
-    print('# {}'.format(chapter_title))
+    print('{}'.format(chapter_title))
 
-    # Set up en EPUB chapter...
+    # Set up en EPUB chapter, ...
     epub_chapter = epub.EpubHtml(
         title=chapter_title,
-        file_name='chap_{0:02d}.xhtml'.format(chapter_index + 1))
+        file_name=chapter_file_name)
+
+    # ... add it to the table of contents
+    book_toc.append(epub.Link(
+        href=chapter_file_name,
+        title=chapter['humanchapter'],
+        uid=chapter_file_name.split('.')[0]))
 
     # ... and compile the HTML contents for it
     doc, tag, text = Doc().tagtext()
@@ -103,7 +114,7 @@ for chapter_index, chapter in contents.iterrows():
             section_index + 1,
             section['section'])
 
-        print('## {}'.format(section_title))
+        print('{}'.format(section_title))
 
         # Start every section with an H2 section title
         with tag('h2'):
@@ -130,28 +141,33 @@ for chapter_index, chapter in contents.iterrows():
                         img_src = 'https:{}'.format(img['src'].replace('/hrthumbs', ''))
                         img_path = handle_img(img_src)
                         img_name, img_ext = os.path.splitext(img_path.split('/')[-1])
-
-                        # Add the image to the EPUB
-                        epub_img = epub.EpubImage()
-                        epub_img.uid = img_name
                         epub_img_path = 'images/{}{}'.format(img_name, img_ext)
-                        epub_img.file_name = epub_img_path
 
-                        if img_ext == '.jpg':
-                            epub_img.media_type = 'image/jpeg'
+                        # Add the image to the EPUB, if it isn't already
+                        if book.get_item_with_href(epub_img_path):
+                            warnings.warn('{} has already been added'.format(
+                                img_path))
                         else:
-                            raise ValueError('You\'re adding something that isn\'t a JPEG')
+                            epub_img = epub.EpubImage()
+                            epub_img.uid = img_name
+                            epub_img.file_name = epub_img_path
 
-                        with open(img_path, 'rb') as img_bin:
-                            epub_img.content = img_bin.read()
+                            if img_ext == '.jpg':
+                                epub_img.media_type = 'image/jpeg'
+                            else:
+                                raise ValueError('You\'re adding something that isn\'t a JPEG')
 
-                        book.add_item(epub_img)
+                            with open(img_path, 'rb') as img_bin:
+                                epub_img.content = img_bin.read()
+
+                            book.add_item(epub_img)
 
                         if div_caption:
                             img_caption = div_caption.text.strip()
                             doc.stag('img', src=epub_img_path, alt=img_caption)
                             with tag('figcaption'):
-                                text(img_caption)
+                                with tag('em'):
+                                    text(img_caption)
                         else:
                             doc.stag('img', src=epub_img_path)
 
@@ -176,10 +192,27 @@ for chapter_index, chapter in contents.iterrows():
                 with tag('p'):
                     text(paragraph_text)
 
+        section_author = section_soup.find(id='book-page-authors')
+        if section_author:
+            with tag('p'):
+                with tag('em'):
+                    text(section_soup.find(id='book-page-authors').text.strip())
+
     # Add the HTML to the chapter and the chapter to the book
     epub_chapter.content = indent(doc.getvalue())
     book.add_item(epub_chapter)
     book.spine.append(epub_chapter)
+
+# add table of contents
+book.toc = tuple(book_toc)
+
+# add CSS
+style = 'img {max-width: 100%; max-height: 100%}'
+nav_css = epub.EpubItem(
+    uid='style_nav',
+    file_name='style/nav.css',
+    media_type='text/css', content=style)
+book.add_item(nav_css)
 
 # add default NCX and Nav file
 book.add_item(epub.EpubNcx())

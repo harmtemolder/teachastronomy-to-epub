@@ -14,6 +14,7 @@
 1. Use `get_index.py` to create a dataframe of dataframes (sections per chapter)
 1. Use `get_contents.py` to add the actual contents of each section to that dataframe
 1. Use `create_epub.py` to convert those contents to an EPUB file and download, resize and convert all referenced images
+1. Use the `EPUB-Checker.app` (freeware, download from https://www.pagina.gmbh/produkte/epub-checker/) to check the validity of your EPUB
 
 ## Cover
 I Photoshopped a cover from the background and logo of the website into `cover.jpg`. Feel free to do the same
